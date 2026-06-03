@@ -22,13 +22,19 @@ interpreta esos datos, los cruza con todo lo demás y asiste en lenguaje natural
 
 ## 2. Alcance
 
-### v1 (este spec) — Lectura y análisis
+### v1 (este spec) — Lectura y análisis, como MCP autónomo
 - Conectores: **Shopify** (ventas), **GA4** (visitas/tráfico), **Google Ads** (publicidad).
 - Solo lectura. El agente analiza, interpreta, reporta y recomienda.
 - Tool de consulta flexible para cruces a medida (no solo reportes enlatados).
 - Multi-empresa: cada agente solo accede a las conexiones de SU empresa.
-- Entrega vía las capacidades existentes del agente (sin nueva vía de entrega).
-- Cada consulta deja un snapshot en la memoria del agente (continuidad).
+- Cada consulta expone un snapshot apto para la memoria del agente (continuidad).
+
+**Entregable del v1 = el MCP en su repo, completo, probado y bien estructurado,
+PERO sin cablear al agente todavía.** El MCP queda "drop-in ready": interfaz
+clara, tests verdes, documentado. El wiring real al agente Gestnova se hace en
+una sesión posterior (ver §6.1). Esto respeta el principio de aislamiento: el
+MCP es una pieza que se entiende y prueba sola; integrarlo será un enchufe, no
+una cirugía.
 
 ### Fuera del v1 (decisiones explícitas)
 - **Meta (Facebook/Instagram Ads):** aplazado. App Review de Meta es lento y no
@@ -113,7 +119,7 @@ siempre sabe de dónde y de cuándo es cada cifra.
 un estado explícito (`status: "no_data" | "error"` + motivo). El agente NUNCA
 debe inventar; debe comunicar la ausencia de dato.
 
-## 6. Integración con las capacidades del agente
+## 6. Integración con las capacidades del agente (diseñada, cableada en fase posterior)
 
 El MCP **no inventa una vía de entrega nueva**. Expone datos; el agente decide con
 sus capacidades actuales:
@@ -126,6 +132,22 @@ Tras cada consulta relevante, el agente escribe un **snapshot + insight** en su
 memoria (en Aurora: QNet/Memory Hub; en cada cliente: la memoria de su agente),
 para que el dato pase a formar parte de lo que el agente sabe y recuerda de la
 empresa, junto con su contabilidad y demás contexto.
+
+### 6.1 El cableado al agente es una fase posterior
+
+El v1 **deja el MCP listo pero NO lo conecta al agente.** La integración real
+—registrar las tools en el agente Gestnova, exponerlas en el chat y la voz del
+webOS, y conectar el MCP al kernel del webOS a través de los conectores
+existentes— se hace en una sesión aparte, una vez el MCP esté probado y estable.
+
+Para que ese enchufe sea trivial cuando llegue, el v1 debe entregar:
+- Contrato de tools estable y documentado (nombres, inputs, outputs, metadatos).
+- Arranque del servidor MCP por stdio igual que los demás `gestnova-*-mcp`
+  (mismo patrón de carga que el agente ya usa para accounting/legal/etc.).
+- README de integración: cómo se registraría en el agente y en el kernel del
+  webOS cuando se decida cablear.
+- Sin dependencias del runtime del agente: el MCP no importa nada del agente;
+  solo el agente importará/registrará el MCP en el futuro.
 
 ## 7. Fase 2 (documentada, no en v1) — Control de plataformas
 
@@ -148,14 +170,23 @@ agente nunca mueve dinero ni publica por su cuenta.
   acceso del token de Gestnova al construir el conector.
 - **Meta:** fuera de v1 por el coste de App Review.
 
-## 9. Criterios de éxito (v1)
+## 9. Criterios de éxito (v1 — MCP autónomo, sin cablear al agente)
 
-1. Una empresa conecta su Shopify y GA4 vía OAuth desde su plataforma Gestnova.
-2. El agente responde preguntas concretas ("ventas semana a semana", "visitas y
-   sus fuentes") con cifras reales, cada una con fuente y fecha.
-3. `marketing_query` resuelve al menos un cruce a medida no contemplado por los
+1. El MCP arranca por stdio igual que los demás `gestnova-*-mcp` y lista sus
+   tools, sin depender del runtime del agente.
+2. Una empresa conecta su Shopify y GA4 vía OAuth; el token cifrado se guarda
+   contra su `company_id`.
+3. Invocando las tools directamente (tests/cliente MCP de prueba), se obtienen
+   cifras reales de ventas y visitas por rango de fechas, cada una con sus
+   metadatos (`source`, `account_id`, `date_range`, `fetched_at`).
+4. `marketing_query` resuelve al menos un cruce a medida no contemplado por los
    reportes enlatados.
-4. El agente genera un reporte (doc OnlyOffice) combinando ventas + visitas.
-5. Aislamiento verificado: el agente de la empresa A no puede leer datos de B.
-6. Ante fallo de API o ausencia de datos, el agente comunica la ausencia y NO
-   inventa cifras.
+5. Aislamiento verificado: una llamada con el `company_id` de la empresa A no
+   puede leer datos ni conexiones de B.
+6. Ante fallo de API o ausencia de datos, la tool devuelve `status: no_data |
+   error` con motivo — nunca cifras inventadas.
+7. README de integración presente: documenta cómo se cableará al agente y al
+   kernel del webOS en la fase posterior.
+
+> El reporte en doc OnlyOffice y la entrega conversacional/voz son capacidades
+> del agente y se validan en la fase de integración posterior, no en el v1.
