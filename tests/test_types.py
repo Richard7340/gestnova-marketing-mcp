@@ -1,4 +1,3 @@
-from datetime import datetime
 from gestnova_marketing.types import DataResult, QuerySpec, DateRange
 
 

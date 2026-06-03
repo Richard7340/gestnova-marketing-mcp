@@ -1,6 +1,6 @@
 """Normalized data contract shared by connectors and tools."""
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 DataStatus = Literal["ok", "no_data", "error"]
