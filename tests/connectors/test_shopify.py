@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from tests.conftest import FakeHttp, json_response, NOW_ISO
 from gestnova_marketing.connectors import get_connector
@@ -56,3 +57,40 @@ async def test_api_error_returns_error_status():
     res = await conn.fetch(_conn(), q)
     assert res.status == "error"
     assert "401" in res.error
+
+
+@pytest.mark.asyncio
+async def test_non_json_body_returns_error_status():
+    def handler(request):
+        return httpx.Response(200, content=b"<html>not json</html>",
+                              headers={"content-type": "text/html"})
+
+    conn = get_connector("shopify", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="shopify", metrics=["total_sales"], start="2026-05-26", end="2026-06-02")
+    res = await conn.fetch(_conn(), q)
+    assert res.status == "error"
+    assert res.source == "shopify"
+    assert res.account_id == "shop-1"
+    assert "non-JSON" in res.error
+    assert res.metrics == {}
+
+
+@pytest.mark.asyncio
+async def test_malformed_total_price_contributes_zero():
+    def handler(request):
+        return json_response({"orders": [
+            {"total_price": "100.50", "id": 1},
+            {"total_price": None, "id": 2},
+            {"total_price": "not-a-number", "id": 3},
+            {"total_price": "49.50", "id": 4},
+        ]})
+
+    conn = get_connector("shopify", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="shopify", metrics=["total_sales", "orders"],
+                  start="2026-05-26", end="2026-06-02")
+    res = await conn.fetch(_conn(), q)
+
+    assert res.status == "ok"
+    assert res.metrics["orders"] == 4
+    # bad orders (None, non-numeric) contribute 0.0; good orders sum to 150.0
+    assert res.metrics["total_sales"] == 150.0

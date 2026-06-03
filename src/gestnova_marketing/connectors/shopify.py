@@ -33,12 +33,24 @@ class ShopifyConnector(Connector):
             return DataResult(**base, status="error",
                               error=f"shopify HTTP {resp.status_code}: {resp.text[:200]}")
 
-        orders = resp.json().get("orders", [])
+        try:
+            payload = resp.json()
+        except Exception as exc:  # 200 with a non-JSON body — never fabricate
+            return DataResult(**base, status="error",
+                              error=f"shopify returned non-JSON body: {exc}")
+
+        orders = payload.get("orders", [])
         if not orders:
             return DataResult(**base, status="no_data",
                               error="shopify returned 0 orders for the range")
 
-        total = round(sum(float(o.get("total_price", 0)) for o in orders), 2)
+        def _to_float(v):
+            try:
+                return float(v)
+            except (TypeError, ValueError):
+                return 0.0
+
+        total = round(sum(_to_float(o.get("total_price", 0)) for o in orders), 2)
         return DataResult(**base, status="ok",
                           metrics={"orders": len(orders), "total_sales": total},
                           rows=[{"id": o.get("id"), "total_price": o.get("total_price")} for o in orders])
