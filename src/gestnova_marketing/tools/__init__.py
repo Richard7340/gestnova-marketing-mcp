@@ -45,7 +45,7 @@ class PingTool(BaseTool):
 
 def get_all_tools() -> list[BaseTool]:
     from .connections import ConnectAccountTool, CompleteConnectionTool, ListConnectionsTool
-    from .reports import SalesTool, TrafficTool, AdsTool
+    from .reports import SalesTool, TrafficTool, AdsTool, OverviewTool, QueryTool
 
     store = _build_store()
     http = _DefaultHttp()
@@ -58,4 +58,6 @@ def get_all_tools() -> list[BaseTool]:
         SalesTool(store=store, http=http, now_iso=now),
         TrafficTool(store=store, http=http, now_iso=now),
         AdsTool(store=store, http=http, now_iso=now),
+        OverviewTool(store=store, http=http, now_iso=now),
+        QueryTool(store=store, http=http, now_iso=now),
     ]

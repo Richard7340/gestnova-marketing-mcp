@@ -69,3 +69,55 @@ class AdsTool(_ServiceTool):
         q = QuerySpec(source="google_ads", metrics=["cost", "clicks", "impressions"],
                       start=args["start"], end=args["end"])
         return await self._run(args["company_id"], q)
+
+
+class OverviewTool(_ServiceTool):
+    name = "marketingOverview"
+    description = ("Unified marketing overview for a date range across all connected sources. "
+                  "Missing/failed sources are reported explicitly, never invented.")
+    input_schema = {"type": "object", "properties": _RANGE_PROPS, "required": _RANGE_REQUIRED}
+
+    _PRESETS = {
+        "shopify": (["total_sales", "orders"], []),
+        "ga4": (["sessions", "activeUsers"], ["sessionSource"]),
+        "google_ads": (["cost", "clicks", "impressions"], []),
+    }
+
+    async def execute(self, args: dict[str, Any]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
+        for source, (metrics, dims) in self._PRESETS.items():
+            q = QuerySpec(source=source, metrics=metrics, dimensions=dims,
+                          start=args["start"], end=args["end"])
+            try:
+                res = await self._svc.run_query(args["company_id"], q)
+                out[source] = res.to_dict()
+            except NoConnectionError as exc:
+                out[source] = {"status": "error", "error": str(exc), "metrics": {}}
+        return {"status": "ok", "date_range": {"start": args["start"], "end": args["end"]},
+                "sources": out}
+
+
+class QueryTool(_ServiceTool):
+    name = "marketingQuery"
+    description = ("Flexible query: pick source, metrics, dimensions, date range, filters. "
+                  "For custom cross-cuts not covered by the canned reports.")
+    input_schema = {
+        "type": "object",
+        "properties": {
+            "company_id": {"type": "string"},
+            "source": {"type": "string", "enum": ["shopify", "ga4", "google_ads"]},
+            "metrics": {"type": "array", "items": {"type": "string"}},
+            "dimensions": {"type": "array", "items": {"type": "string"}},
+            "start": {"type": "string", "format": "date"},
+            "end": {"type": "string", "format": "date"},
+            "filters": {"type": "object"},
+        },
+        "required": ["company_id", "source", "metrics", "start", "end"],
+    }
+
+    async def execute(self, args: dict[str, Any]) -> dict[str, Any]:
+        q = QuerySpec(source=args["source"], metrics=args["metrics"],
+                      dimensions=args.get("dimensions", []),
+                      start=args["start"], end=args["end"],
+                      filters=args.get("filters", {}))
+        return await self._run(args["company_id"], q)

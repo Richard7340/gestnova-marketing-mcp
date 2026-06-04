@@ -56,3 +56,52 @@ async def test_sales_tool_without_connection_reports_error_not_invention():
     assert res["account_id"] == ""
     assert res["date_range"] == {"start": "2026-05-26", "end": "2026-06-02"}
     assert res["fetched_at"] == NOW_ISO
+
+
+@pytest.mark.asyncio
+async def test_overview_combines_available_sources():
+    def handler(request):
+        if "myshopify.com" in str(request.url):
+            return json_response({"orders": [{"total_price": "100.00", "id": 1}]})
+        if "runReport" in str(request.url):
+            return json_response({
+                "rows": [{"dimensionValues": [{"value": "google"}],
+                          "metricValues": [{"value": "70"}]}],
+                "metricHeaders": [{"name": "sessions"}],
+                "dimensionHeaders": [{"name": "sessionSource"}],
+            })
+        return json_response({}, status=404)
+
+    from gestnova_marketing.tools.reports import OverviewTool
+    tool = OverviewTool(store=_store(), http=FakeHttp(handler), now_iso=NOW_ISO)
+    res = await tool.execute({"company_id": "c1", "start": "2026-05-26", "end": "2026-06-02"})
+    assert res["status"] == "ok"
+    # Per-source results present; missing google_ads is reported, not invented.
+    assert res["sources"]["shopify"]["metrics"]["total_sales"] == 100.0
+    assert res["sources"]["ga4"]["metrics"]["sessions"] == 70
+    assert res["sources"]["google_ads"]["status"] in ("error", "no_data")
+
+
+@pytest.mark.asyncio
+async def test_query_tool_passes_through_custom_metrics():
+    captured = {}
+
+    def handler(request):
+        captured["url"] = str(request.url)
+        return json_response({
+            "rows": [{"dimensionValues": [{"value": "Madrid"}],
+                      "metricValues": [{"value": "12"}]}],
+            "metricHeaders": [{"name": "conversions"}],
+            "dimensionHeaders": [{"name": "city"}],
+        })
+
+    from gestnova_marketing.tools.reports import QueryTool
+    tool = QueryTool(store=_store(), http=FakeHttp(handler), now_iso=NOW_ISO)
+    res = await tool.execute({
+        "company_id": "c1", "source": "ga4",
+        "metrics": ["conversions"], "dimensions": ["city"],
+        "start": "2026-05-26", "end": "2026-06-02",
+    })
+    assert res["status"] == "ok"
+    assert res["rows"][0]["city"] == "Madrid"
+    assert res["rows"][0]["conversions"] == 12
