@@ -93,6 +93,25 @@ async def test_filters_are_rejected_without_network_call():
 
 
 @pytest.mark.asyncio
+async def test_unsupported_metrics_rejected_without_network_call():
+    """Honest rejection: shopify only computes total_sales/orders. An
+    unrequested metric must error WITHOUT making the request, never present
+    sales as if 'refunds' were fulfilled."""
+    def handler(request):
+        raise AssertionError("network handler must not be called for unsupported metrics")
+
+    conn = get_connector("shopify", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="shopify", metrics=["refunds"],
+                  start="2026-05-26", end="2026-06-02")
+    res = await conn.fetch(_conn(), q)
+
+    assert res.status == "error"
+    assert "unsupported" in res.error
+    assert "refunds" in res.error
+    assert res.metrics == {}
+
+
+@pytest.mark.asyncio
 async def test_malformed_total_price_contributes_zero():
     def handler(request):
         return json_response({"orders": [

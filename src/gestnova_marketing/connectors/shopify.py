@@ -9,6 +9,9 @@ from gestnova_marketing.types import DataResult, DateRange, QuerySpec
 
 API_VERSION = "2024-04"
 
+# Metrics this connector can actually compute from the orders endpoint.
+_SUPPORTED_METRICS = {"total_sales", "orders"}
+
 
 @register("shopify")
 class ShopifyConnector(Connector):
@@ -16,6 +19,11 @@ class ShopifyConnector(Connector):
         dr = DateRange(start=query.start, end=query.end)
         base = {"source": "shopify", "account_id": conn.account_id,
                 "date_range": dr, "fetched_at": self._now}
+        unsupported = sorted(set(query.metrics) - _SUPPORTED_METRICS)
+        if unsupported:  # honest: never present unrequested data as success
+            return DataResult(**base, status="error",
+                              error=f"unsupported shopify metrics {unsupported}; "
+                                    f"supported: {sorted(_SUPPORTED_METRICS)}")
         if query.filters:  # honest: don't silently ignore unsupported filters
             return DataResult(**base, status="error",
                               error="filters are not supported for the shopify connector in v1")

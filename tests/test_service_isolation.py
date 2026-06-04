@@ -62,6 +62,21 @@ def test_list_connections_never_exposes_token(store):
         assert not (known_tokens & {v for v in c.values() if isinstance(v, str)})
 
 
+@pytest.mark.asyncio
+async def test_callable_now_iso_stamps_per_request(store):
+    # now_iso may be a zero-arg callable: each run_query must stamp the time
+    # at fetch, not freeze it at construction (production HTTP server).
+    stamps = iter(["T1", "T2"])
+    svc = MarketingService(store=store, http=FakeHttp(_shopify_ok_handler),
+                           now_iso=lambda: next(stamps))
+    q = QuerySpec(source="shopify", metrics=["total_sales"], start="2026-05-26", end="2026-06-02")
+    first = await svc.run_query("c1", q)
+    second = await svc.run_query("c1", q)
+    assert first.fetched_at == "T1"
+    assert second.fetched_at == "T2"
+    assert first.fetched_at != second.fetched_at
+
+
 def _raise_if_hit(request):
     raise AssertionError("network must not be called for an inactive connection")
 

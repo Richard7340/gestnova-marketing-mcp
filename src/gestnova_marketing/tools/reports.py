@@ -7,7 +7,7 @@ from typing import Any
 from ._base import BaseTool
 from gestnova_marketing.connectors import HttpClient
 from gestnova_marketing.credentials.store import CredentialStore
-from gestnova_marketing.service import MarketingService, NoConnectionError
+from gestnova_marketing.service import MarketingService, NoConnectionError, NowIso
 from gestnova_marketing.types import DataResult, DateRange, QuerySpec
 
 _RANGE_PROPS = {
@@ -19,9 +19,13 @@ _RANGE_REQUIRED = ["company_id", "start", "end"]
 
 
 class _ServiceTool(BaseTool):
-    def __init__(self, store: CredentialStore, http: HttpClient, *, now_iso: str) -> None:
+    def __init__(self, store: CredentialStore, http: HttpClient, *, now_iso: NowIso) -> None:
         self._svc = MarketingService(store=store, http=http, now_iso=now_iso)
-        self._now = now_iso
+        # now_iso may be a fixed str (tests) or a zero-arg callable (production).
+        self._now_iso = now_iso
+
+    def _now(self) -> str:
+        return self._now_iso() if callable(self._now_iso) else self._now_iso
 
     async def _run(self, company_id: str, query: QuerySpec) -> dict[str, Any]:
         try:
@@ -31,7 +35,7 @@ class _ServiceTool(BaseTool):
                 source=query.source,
                 account_id="",            # unknown — no connection
                 date_range=DateRange(start=query.start, end=query.end),
-                fetched_at=self._now,
+                fetched_at=self._now(),
                 status="error",
                 error=str(exc),
             ).to_dict()
@@ -92,7 +96,15 @@ class OverviewTool(_ServiceTool):
                 res = await self._svc.run_query(args["company_id"], q)
                 out[source] = res.to_dict()
             except NoConnectionError as exc:
-                out[source] = {"status": "error", "error": str(exc), "metrics": {}}
+                # Uniform envelope: same full DataResult shape as ok/connector-error.
+                out[source] = DataResult(
+                    source=source,
+                    account_id="",
+                    date_range=DateRange(start=args["start"], end=args["end"]),
+                    fetched_at=self._now(),
+                    status="error",
+                    error=str(exc),
+                ).to_dict()
         return {"status": "ok", "date_range": {"start": args["start"], "end": args["end"]},
                 "sources": out}
 

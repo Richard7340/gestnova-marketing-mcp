@@ -79,7 +79,13 @@ async def test_overview_combines_available_sources():
     # Per-source results present; missing google_ads is reported, not invented.
     assert res["sources"]["shopify"]["metrics"]["total_sales"] == 100.0
     assert res["sources"]["ga4"]["metrics"]["sessions"] == 70
-    assert res["sources"]["google_ads"]["status"] in ("error", "no_data")
+    # google_ads has no connection here -> full uniform envelope, not stripped.
+    ga = res["sources"]["google_ads"]
+    assert ga["status"] in ("error", "no_data")
+    assert ga["source"] == "google_ads"
+    assert ga["date_range"] == {"start": "2026-05-26", "end": "2026-06-02"}
+    assert "fetched_at" in ga
+    assert ga["metrics"] == {}
 
 
 @pytest.mark.asyncio

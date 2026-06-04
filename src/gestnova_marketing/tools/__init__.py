@@ -49,7 +49,8 @@ def get_all_tools() -> list[BaseTool]:
 
     store = _build_store()
     http = _DefaultHttp()
-    now = _now_iso()
+    # Pass the FUNCTION (not a frozen value): each request stamps fresh time.
+    now = _now_iso
     return [
         PingTool(),
         ConnectAccountTool(store=store, http=http, now_iso=now),
