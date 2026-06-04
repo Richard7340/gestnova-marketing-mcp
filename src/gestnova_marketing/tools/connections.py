@@ -1,6 +1,8 @@
 """Connection lifecycle tools: build auth URL, exchange code, list connections."""
 from __future__ import annotations
+import os
 from typing import Any
+from urllib.parse import urlencode
 
 from ._base import BaseTool
 from gestnova_marketing.connectors import HttpClient
@@ -51,10 +53,15 @@ class ConnectAccountTool(BaseTool):
         meta = _PROVIDER[source]
         auth = meta["auth"].format(shop=args.get("shop", ""))
         # Real client_id comes from env at runtime; placeholder marker kept explicit.
-        import os
         client_id = os.environ.get(f"{source.upper()}_CLIENT_ID", "")
-        url = (f"{auth}?client_id={client_id}&redirect_uri={args['redirect_uri']}"
-               f"&response_type=code&scope={meta['scope']}&state={args['company_id']}")
+        params = {
+            "client_id": client_id,
+            "redirect_uri": args["redirect_uri"],
+            "response_type": "code",
+            "scope": meta["scope"],
+            "state": args["company_id"],
+        }
+        url = f"{auth}?{urlencode(params)}"
         return {"status": "ok", "source": source, "auth_url": url}
 
 
@@ -78,7 +85,6 @@ class CompleteConnectionTool(BaseTool):
         self._store, self._http, self._now = store, http, now_iso
 
     async def execute(self, args: dict[str, Any]) -> dict[str, Any]:
-        import os
         source = args["source"]
         meta = _PROVIDER[source]
         token_url = meta["token"].format(shop=args.get("shop", ""))
