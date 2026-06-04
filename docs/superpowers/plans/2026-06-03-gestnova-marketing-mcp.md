@@ -1215,7 +1215,7 @@ from . import google_ads as _google_ads  # noqa: E402,F401
 
 - [ ] **Step 6: Verify the registry is populated without explicit imports**
 
-Run: `uv run python -c "import gestnova_marketing.connectors as c; print(c.supported_sources())"`
+Run: `PYTHONPATH=src uv run python -c "import gestnova_marketing.connectors as c; print(c.supported_sources())"`
 Expected: prints `['ga4', 'google_ads', 'shopify']` (no manual submodule import needed).
 
 - [ ] **Step 7: Run the full connector suite**
@@ -2178,7 +2178,7 @@ CMD ["gestnova-marketing-http"]
 
 - [ ] **Step 3: Run the complete suite + ruff + import check**
 
-Run: `uv run pytest -v && uv run ruff check src tests && uv run python -c "import gestnova_marketing.connectors as c; import gestnova_marketing.connectors.shopify, gestnova_marketing.connectors.ga4, gestnova_marketing.connectors.google_ads; print(c.supported_sources())"`
+Run: `uv run pytest -v && uv run ruff check src tests && PYTHONPATH=src uv run python -c "import gestnova_marketing.connectors as c; print(c.supported_sources())"`
 Expected: all tests pass; ruff clean; prints `['ga4', 'google_ads', 'shopify']`.
 
 - [ ] **Step 4: Final commit**
