@@ -41,11 +41,12 @@ class GA4Connector(Connector):
             return DataResult(**base, status="no_data",
                               error="ga4 returned 0 rows for the range")
 
-        def _to_int(v):
+        def _to_num(v):
             try:
-                return int(float(v))
+                f = float(v)
             except (TypeError, ValueError):
                 return 0
+            return int(f) if f.is_integer() else f
 
         try:
             metric_names = [h["name"] for h in payload.get("metricHeaders", [])]
@@ -58,7 +59,7 @@ class GA4Connector(Connector):
                 for i, dv in enumerate(r.get("dimensionValues", [])):
                     row[dim_names[i]] = dv.get("value")
                 for i, mv in enumerate(r.get("metricValues", [])):
-                    val = _to_int(mv.get("value"))
+                    val = _to_num(mv.get("value"))
                     row[metric_names[i]] = val
                     totals[metric_names[i]] += val
                 out_rows.append(row)

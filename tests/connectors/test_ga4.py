@@ -97,3 +97,26 @@ async def test_malformed_metric_value_does_not_crash():
         # malformed value coerced to 0, never fabricated
         assert res.metrics["sessions"] == 0
         assert res.rows[0]["sessions"] == 0
+
+
+@pytest.mark.asyncio
+async def test_float_metric_value_is_preserved():
+    """Golden rule: a fractional metric (e.g. bounceRate 0.42) must NOT be
+    truncated to 0 — preserve the float in both the row and the totals."""
+    def handler(request):
+        return json_response({
+            "rows": [
+                {"dimensionValues": [{"value": "google"}],
+                 "metricValues": [{"value": "0.42"}]},
+            ],
+            "metricHeaders": [{"name": "bounceRate"}],
+            "dimensionHeaders": [{"name": "sessionSource"}],
+        })
+
+    conn = get_connector("ga4", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="ga4", metrics=["bounceRate"], dimensions=["sessionSource"],
+                  start="2026-05-26", end="2026-06-02")
+    res = await conn.fetch(_conn(), q)
+    assert res.status == "ok"
+    assert res.rows[0]["bounceRate"] == 0.42
+    assert res.metrics["bounceRate"] == 0.42
