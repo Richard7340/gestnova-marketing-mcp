@@ -8,7 +8,7 @@ from ._base import BaseTool
 from gestnova_marketing.connectors import HttpClient
 from gestnova_marketing.credentials.store import CredentialStore
 from gestnova_marketing.service import MarketingService, NoConnectionError
-from gestnova_marketing.types import QuerySpec
+from gestnova_marketing.types import DataResult, DateRange, QuerySpec
 
 _RANGE_PROPS = {
     "company_id": {"type": "string"},
@@ -21,12 +21,20 @@ _RANGE_REQUIRED = ["company_id", "start", "end"]
 class _ServiceTool(BaseTool):
     def __init__(self, store: CredentialStore, http: HttpClient, *, now_iso: str) -> None:
         self._svc = MarketingService(store=store, http=http, now_iso=now_iso)
+        self._now = now_iso
 
     async def _run(self, company_id: str, query: QuerySpec) -> dict[str, Any]:
         try:
             res = await self._svc.run_query(company_id, query)
         except NoConnectionError as exc:
-            return {"status": "error", "error": str(exc)}
+            return DataResult(
+                source=query.source,
+                account_id="",            # unknown — no connection
+                date_range=DateRange(start=query.start, end=query.end),
+                fetched_at=self._now,
+                status="error",
+                error=str(exc),
+            ).to_dict()
         return res.to_dict()
 
 

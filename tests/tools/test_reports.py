@@ -48,4 +48,11 @@ async def test_sales_tool_without_connection_reports_error_not_invention():
     res = await tool.execute({"company_id": "nope", "start": "2026-05-26", "end": "2026-06-02"})
     assert res["status"] == "error"
     assert "connection" in res["error"].lower()
-    assert "metrics" not in res or res.get("metrics") in ({}, None)
+    # Normalized error envelope: same shape as a DataResult error.
+    assert res["metrics"] == {}
+    assert res["metrics"] in ({}, None)
+    assert res["rows"] == []
+    assert res["source"] == "shopify"
+    assert res["account_id"] == ""
+    assert res["date_range"] == {"start": "2026-05-26", "end": "2026-06-02"}
+    assert res["fetched_at"] == NOW_ISO
