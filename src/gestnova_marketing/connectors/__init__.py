@@ -21,3 +21,9 @@ def get_connector(source: str, http: HttpClient, *, now_iso: str) -> Connector:
 
 def supported_sources() -> list[str]:
     return sorted(_REGISTRY)
+
+
+# Import connector modules so their @register decorators run on package import.
+from . import shopify as _shopify  # noqa: E402,F401
+from . import ga4 as _ga4          # noqa: E402,F401
+from . import google_ads as _google_ads  # noqa: E402,F401
