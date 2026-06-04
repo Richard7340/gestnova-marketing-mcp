@@ -8,6 +8,19 @@ from gestnova_marketing.credentials.store import Connection
 from gestnova_marketing.types import DataResult, DateRange, QuerySpec
 
 
+def _dimension_filter(filters):
+    """Build a GA4 Data API dimensionFilter from simple equality filters.
+    Each key is a dimension name, each value the exact string to match;
+    multiple keys are AND-combined."""
+    exprs = [
+        {"filter": {"fieldName": k, "stringFilter": {"value": str(v), "matchType": "EXACT"}}}
+        for k, v in filters.items()
+    ]
+    if len(exprs) == 1:
+        return exprs[0]
+    return {"andGroup": {"expressions": exprs}}
+
+
 @register("ga4")
 class GA4Connector(Connector):
     async def fetch(self, conn: Connection, query: QuerySpec) -> DataResult:
@@ -20,6 +33,8 @@ class GA4Connector(Connector):
             "metrics": [{"name": m} for m in query.metrics],
             "dimensions": [{"name": d} for d in query.dimensions],
         }
+        if query.filters:
+            body["dimensionFilter"] = _dimension_filter(query.filters)
         headers = {"Authorization": f"Bearer {conn.token}"}
         try:
             resp = await self._http.request("POST", url, headers=headers, json=body)

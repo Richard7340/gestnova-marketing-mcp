@@ -100,7 +100,9 @@ class OverviewTool(_ServiceTool):
 class QueryTool(_ServiceTool):
     name = "marketingQuery"
     description = ("Flexible query: pick source, metrics, dimensions, date range, filters. "
-                  "For custom cross-cuts not covered by the canned reports.")
+                  "For custom cross-cuts not covered by the canned reports. "
+                  "Filters (equality by dimension) are supported for GA4; "
+                  "other sources reject non-empty filters.")
     input_schema = {
         "type": "object",
         "properties": {

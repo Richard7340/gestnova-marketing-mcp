@@ -34,6 +34,10 @@ class GoogleAdsConnector(Connector):
         base = {"source": "google_ads", "account_id": conn.account_id,
                 "date_range": dr, "fetched_at": self._now}
 
+        if query.filters:  # honest: don't silently ignore unsupported filters
+            return DataResult(**base, status="error",
+                              error="filters are not supported for the google_ads connector in v1")
+
         dev_token = os.environ.get("GOOGLE_ADS_DEVELOPER_TOKEN")
         if not dev_token:
             return DataResult(**base, status="error",

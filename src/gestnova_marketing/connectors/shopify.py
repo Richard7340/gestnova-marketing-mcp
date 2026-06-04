@@ -16,6 +16,9 @@ class ShopifyConnector(Connector):
         dr = DateRange(start=query.start, end=query.end)
         base = {"source": "shopify", "account_id": conn.account_id,
                 "date_range": dr, "fetched_at": self._now}
+        if query.filters:  # honest: don't silently ignore unsupported filters
+            return DataResult(**base, status="error",
+                              error="filters are not supported for the shopify connector in v1")
         url = f"https://{conn.account_id}.myshopify.com/admin/api/{API_VERSION}/orders.json"
         params = {
             "status": "any",

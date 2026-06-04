@@ -76,6 +76,23 @@ async def test_non_json_body_returns_error_status():
 
 
 @pytest.mark.asyncio
+async def test_filters_are_rejected_without_network_call():
+    """Honest rejection: shopify doesn't support filters, so a non-empty
+    filters set must error out WITHOUT making the request."""
+    def handler(request):
+        raise AssertionError("network handler must not be called when filters are rejected")
+
+    conn = get_connector("shopify", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="shopify", metrics=["total_sales", "orders"],
+                  start="2026-05-26", end="2026-06-02", filters={"city": "Madrid"})
+    res = await conn.fetch(_conn(), q)
+
+    assert res.status == "error"
+    assert "filters are not supported" in res.error
+    assert res.metrics == {}
+
+
+@pytest.mark.asyncio
 async def test_malformed_total_price_contributes_zero():
     def handler(request):
         return json_response({"orders": [

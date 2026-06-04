@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 from tests.conftest import FakeHttp, json_response, NOW_ISO
@@ -120,3 +122,73 @@ async def test_float_metric_value_is_preserved():
     assert res.status == "ok"
     assert res.rows[0]["bounceRate"] == 0.42
     assert res.metrics["bounceRate"] == 0.42
+
+
+def _ok_response():
+    return json_response({
+        "rows": [
+            {"dimensionValues": [{"value": "google"}], "metricValues": [{"value": "10"}]},
+        ],
+        "metricHeaders": [{"name": "sessions"}],
+        "dimensionHeaders": [{"name": "sessionSource"}],
+    })
+
+
+@pytest.mark.asyncio
+async def test_single_filter_adds_dimension_filter():
+    captured = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content)
+        return _ok_response()
+
+    conn = get_connector("ga4", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="ga4", metrics=["sessions"], dimensions=["sessionSource"],
+                  start="2026-05-26", end="2026-06-02", filters={"city": "Madrid"})
+    res = await conn.fetch(_conn(), q)
+
+    assert res.status == "ok"
+    body = captured["body"]
+    assert body["dimensionFilter"]["filter"]["fieldName"] == "city"
+    assert body["dimensionFilter"]["filter"]["stringFilter"]["value"] == "Madrid"
+    assert body["dimensionFilter"]["filter"]["stringFilter"]["matchType"] == "EXACT"
+
+
+@pytest.mark.asyncio
+async def test_multiple_filters_use_and_group():
+    captured = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content)
+        return _ok_response()
+
+    conn = get_connector("ga4", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="ga4", metrics=["sessions"], dimensions=["sessionSource"],
+                  start="2026-05-26", end="2026-06-02",
+                  filters={"city": "Madrid", "country": "Spain"})
+    res = await conn.fetch(_conn(), q)
+
+    assert res.status == "ok"
+    body = captured["body"]
+    exprs = body["dimensionFilter"]["andGroup"]["expressions"]
+    assert len(exprs) == 2
+    fields = {e["filter"]["fieldName"] for e in exprs}
+    assert fields == {"city", "country"}
+
+
+@pytest.mark.asyncio
+async def test_empty_filters_omits_dimension_filter():
+    """No-regression: an empty filters set must leave the body unchanged."""
+    captured = {}
+
+    def handler(request):
+        captured["body"] = json.loads(request.content)
+        return _ok_response()
+
+    conn = get_connector("ga4", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="ga4", metrics=["sessions"], dimensions=["sessionSource"],
+                  start="2026-05-26", end="2026-06-02")
+    res = await conn.fetch(_conn(), q)
+
+    assert res.status == "ok"
+    assert "dimensionFilter" not in captured["body"]
