@@ -38,10 +38,16 @@ class GoogleAdsConnector(Connector):
         if not dev_token:
             return DataResult(**base, status="error",
                               error="missing Google Ads developer token (GOOGLE_ADS_DEVELOPER_TOKEN)")
+        known = [m for m in query.metrics if m in _METRIC_FIELD]
+        if not known:
+            return DataResult(**base, status="error",
+                              error=f"no supported Google Ads metrics in {query.metrics}; "
+                                    f"supported: {sorted(_METRIC_FIELD)}")
+
         login_cid = os.environ.get("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "").replace("-", "")
         customer_id = conn.account_id.replace("-", "")
 
-        fields = ", ".join(_METRIC_FIELD[m] for m in query.metrics if m in _METRIC_FIELD)
+        fields = ", ".join(_METRIC_FIELD[m] for m in known)
         gaql = (f"SELECT {fields} FROM customer "
                 f"WHERE segments.date BETWEEN '{query.start}' AND '{query.end}'")
         url = (f"https://googleads.googleapis.com/{API_VERSION}/"
@@ -74,7 +80,7 @@ class GoogleAdsConnector(Connector):
             return DataResult(**base, status="no_data",
                               error="google_ads returned 0 rows for the range")
 
-        totals = {m: 0 for m in query.metrics}
+        totals = {m: 0 for m in known}
         for r in results:
             m = r.get("metrics", {})
             if "cost" in totals:

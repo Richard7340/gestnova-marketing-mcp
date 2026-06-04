@@ -83,6 +83,25 @@ async def test_non_json_body_is_error(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_unsupported_metric_is_rejected_pre_network(monkeypatch):
+    monkeypatch.setenv("GOOGLE_ADS_DEVELOPER_TOKEN", "dev-tok")
+    monkeypatch.setenv("GOOGLE_ADS_LOGIN_CUSTOMER_ID", "999-999-9999")
+
+    def handler(request):  # no recognized metric -> must not hit network
+        raise AssertionError("must not hit network when no supported metrics requested")
+
+    conn = get_connector("google_ads", FakeHttp(handler), now_iso=NOW_ISO)
+    q = QuerySpec(source="google_ads", metrics=["conversions"],
+                  start="2026-05-26", end="2026-06-02")
+    res = await conn.fetch(_conn(), q)
+
+    assert res.status == "error"
+    assert "conversions" in res.error or "supported" in res.error
+    # never fabricate a zero for an unsupported metric
+    assert "conversions" not in (res.metrics or {})
+
+
+@pytest.mark.asyncio
 async def test_malformed_metric_does_not_crash(monkeypatch):
     monkeypatch.setenv("GOOGLE_ADS_DEVELOPER_TOKEN", "dev-tok")
 
